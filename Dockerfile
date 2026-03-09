@@ -14,7 +14,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3019
+ENV PORT=3021
 ENV HOST=0.0.0.0
 
 COPY --from=builder /app/package.json ./package.json
@@ -22,6 +22,6 @@ COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/build ./build
 
-EXPOSE 3019
+EXPOSE 3021
 
 CMD ["npm", "run", "start"]

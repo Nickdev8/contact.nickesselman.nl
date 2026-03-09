@@ -2,10 +2,10 @@ services:
   contact-site:
     build: .
     ports:
-      - "3019:3019"
+      - "3021:3021"
     env_file:
       - .env
     environment:
-      PORT: "3019"
+      PORT: "3021"
       HOST: "0.0.0.0"
     restart: unless-stopped
