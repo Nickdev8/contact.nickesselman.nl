@@ -95,28 +95,27 @@
   <div class="page">
     <section class="hero">
       <div class="hero-card">
-        <div class="eyebrow">Red channel open</div>
+        <div class="eyebrow">Contact</div>
         <div class="hero-grid">
           <div class="hero-copy">
-            <h1>Drop the idea, bug, or screenshot.</h1>
+            <h1>Send a message.</h1>
             <p>
-              This contact page now feels more like a dark intake desk than a landing page. Send a
-              rough thought, a clean pitch, or a broken-state screenshot.
+              Use this form for project questions, bug reports, or general contact.
             </p>
           </div>
 
           <div class="hero-side">
             <div class="stat-card">
-              <span class="stat-label">Best for</span>
-              <strong class="stat-value">bugs, builds, visuals</strong>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Image flow</span>
-              <strong class="stat-value">emailed as attachments</strong>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Fastest reply</span>
+              <span class="stat-label">Reply</span>
               <strong class="stat-value">WhatsApp or email</strong>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Attachments</span>
+              <strong class="stat-value">Up to {IMAGE_LIMITS.maxFiles} images</strong>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Direct email</span>
+              <strong class="stat-value">info@nickesselman.nl</strong>
             </div>
           </div>
         </div>
@@ -145,12 +144,11 @@
         {:else}
           <div class="form-header">
             <div>
-              <div class="section-kicker">Message intake</div>
+              <div class="section-kicker">Form</div>
               <h2 class="form-heading">Contact form</h2>
             </div>
             <p class="form-copy">
-              Add enough context to act on. Images you upload here are sent as email attachments,
-              not public links.
+              Images are sent as email attachments.
             </p>
           </div>
 
@@ -260,10 +258,10 @@
                       bind:files={imageFiles}
                     />
                     <label class="upload-surface" for={"images-" + fileInputVersion}>
-                      <span class="upload-title">Choose screenshots, sketches, or photos</span>
+                      <span class="upload-title">Select images</span>
                       <span class="upload-copy">
-                        Up to {IMAGE_LIMITS.maxFiles} images. {formatBytes(IMAGE_LIMITS.maxBytesPerFile)}
-                        each, {formatBytes(IMAGE_LIMITS.maxBytesTotal)} total.
+                        {IMAGE_LIMITS.maxFiles} files max. {formatBytes(IMAGE_LIMITS.maxBytesPerFile)}
+                        each. {formatBytes(IMAGE_LIMITS.maxBytesTotal)} total.
                       </span>
                     </label>
                   </div>
@@ -278,8 +276,7 @@
                       </div>
                     {/each}
                     <p class="subtle">
-                      Current total: {formatBytes(totalImageBytes)}. If you need more, drop a cloud
-                      link in the message.
+                      Total: {formatBytes(totalImageBytes)}.
                     </p>
                   </div>
                 {/if}
@@ -299,7 +296,7 @@
               <button class="button" type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Sending..." : "Send message"}
               </button>
-              <span class="subtle">Replies usually come back through the method you pick.</span>
+              <span class="subtle">Replies usually use the method you choose.</span>
             </div>
           </form>
         {/if}
@@ -307,24 +304,21 @@
 
       <div class="side-stack">
         <aside class="side-card side-card--accent">
-          <div class="kicker">Add images</div>
-          <h3>Attach the useful bits</h3>
-          <p>
-            Upload screenshots, mockups, sketches, or error captures right in the form. They get
-            attached to the email so the context lands with the message.
-          </p>
+          <div class="kicker">Images</div>
+          <h3>Image attachments</h3>
+          <p>Attach screenshots or photos directly to the message.</p>
           <ul class="info-list">
-            <li>Up to {IMAGE_LIMITS.maxFiles} images per message</li>
-            <li>{formatBytes(IMAGE_LIMITS.maxBytesPerFile)} max per image</li>
-            <li>{formatBytes(IMAGE_LIMITS.maxBytesTotal)} total attachment budget</li>
+            <li>{IMAGE_LIMITS.maxFiles} files max</li>
+            <li>{formatBytes(IMAGE_LIMITS.maxBytesPerFile)} per file</li>
+            <li>{formatBytes(IMAGE_LIMITS.maxBytesTotal)} total</li>
           </ul>
         </aside>
 
         <aside class="side-card">
-          <div class="kicker">Fallback</div>
-          <h3>Plain email still works</h3>
+          <div class="kicker">Email</div>
+          <h3>Direct contact</h3>
           <p>
-            If the form is not the right fit, send it directly to
+            Send directly to
             <a href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>.
           </p>
         </aside>
