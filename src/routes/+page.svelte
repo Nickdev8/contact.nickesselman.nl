@@ -67,7 +67,12 @@
         }
 
         if (result.type === "error") {
-          clientResult = { error: "Failed to send message. Please try again." };
+          clientResult = {
+            error:
+              result.status === 413
+                ? "The upload was larger than the server accepted. Try fewer or smaller images."
+                : "Failed to send message. Please try again."
+          };
           return;
         }
 

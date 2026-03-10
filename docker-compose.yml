@@ -8,4 +8,5 @@ services:
     environment:
       PORT: "3021"
       HOST: "0.0.0.0"
+      BODY_SIZE_LIMIT: "12M"
     restart: unless-stopped
