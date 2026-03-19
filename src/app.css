@@ -1,20 +1,21 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
 
 :root {
-  color-scheme: light;
-  --bg: #f2efe8;
-  --surface: #fffdf9;
-  --surface-muted: #f7f3ec;
-  --text: #181716;
-  --muted: #5f5a52;
-  --line: #d9d2c4;
-  --line-strong: #b8ae9c;
-  --accent: #1d4ed8;
-  --accent-soft: #e8f0ff;
-  --danger: #8b1e1e;
-  --danger-soft: #f8e8e8;
-  --success: #14532d;
-  --success-soft: #e8f5eb;
+  color-scheme: dark;
+  --bg: #0f0d0e;
+  --surface: #171316;
+  --surface-muted: #121013;
+  --text: #f3edef;
+  --muted: #b9aab0;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(214, 87, 104, 0.34);
+  --accent: #d65768;
+  --accent-strong: #ea8795;
+  --accent-soft: rgba(214, 87, 104, 0.12);
+  --danger: #f4b2bc;
+  --danger-soft: rgba(120, 34, 47, 0.34);
+  --success: #f7d5db;
+  --success-soft: rgba(214, 87, 104, 0.14);
 }
 
 html,
@@ -38,7 +39,7 @@ a {
 code {
   padding: 0.18em 0.4em;
   border-radius: 6px;
-  background: var(--surface-muted);
+  background: rgba(255, 255, 255, 0.07);
   font-size: 0.92em;
 }
 
@@ -72,7 +73,7 @@ textarea {
 .eyebrow,
 .section-kicker {
   margin: 0 0 10px;
-  color: var(--muted);
+  color: var(--accent-strong);
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -93,14 +94,18 @@ textarea {
   line-height: 1.6;
 }
 
+.intro-copy a {
+  color: var(--accent-strong);
+}
+
 .source-note {
   display: inline-block;
   margin: 14px 0 0;
   padding: 8px 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
   font-size: 0.94rem;
 }
 
@@ -158,7 +163,7 @@ textarea {
 
 .field input::placeholder,
 .field textarea::placeholder {
-  color: #7f786d;
+  color: #8f7d84;
 }
 
 .field input:focus,
@@ -166,8 +171,8 @@ textarea {
 .field textarea:focus {
   outline: none;
   border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+  background: #141013;
+  box-shadow: 0 0 0 3px rgba(214, 87, 104, 0.12);
 }
 
 .field textarea {
@@ -224,7 +229,7 @@ textarea {
   padding: 11px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--surface-muted);
 }
 
 .file-pill span {
@@ -249,7 +254,7 @@ textarea {
   min-height: 44px;
   padding: 0 18px;
   border-radius: 8px;
-  border: 1px solid var(--text);
+  border: 1px solid var(--line-strong);
   cursor: pointer;
   font-weight: 600;
   text-decoration: none;
@@ -257,8 +262,9 @@ textarea {
 }
 
 .button {
-  background: var(--text);
-  color: #fff;
+  background: var(--accent);
+  color: #15090b;
+  border-color: var(--accent);
 }
 
 .button-secondary {
@@ -268,7 +274,7 @@ textarea {
 
 .button:hover,
 .button-secondary:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-strong);
 }
 
 .button:disabled {
@@ -286,13 +292,13 @@ textarea {
 
 .status {
   background: var(--danger-soft);
-  border-color: #e8c6c6;
+  border-color: rgba(244, 178, 188, 0.2);
   color: var(--danger);
 }
 
 .success {
   background: var(--success-soft);
-  border-color: #c9e4d0;
+  border-color: rgba(247, 213, 219, 0.18);
   color: var(--success);
 }
 
