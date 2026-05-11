@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
   import { goto } from "$app/navigation";
   import { enhance } from "$app/forms";
@@ -16,6 +17,7 @@
     error?: string;
   };
 
+  export let data: { turnstileSiteKey: string };
   export let form: FormResult | null | undefined;
 
   let clientResult: FormResult | null = null;
@@ -33,8 +35,11 @@
   let source: string | null = null;
   let presetMessage = "";
   let fileInputVersion = 0;
+  let turnstileContainer: HTMLDivElement | null = null;
+  let turnstileWidgetId: string | undefined;
 
   const attachmentAccept = IMAGE_LIMITS.acceptedTypes.join(",");
+  const turnstileSiteKey = data.turnstileSiteKey;
 
   $: formResult = clientResult ?? form ?? {};
   $: source = normalizeSource($page.url.searchParams.get("from"));
@@ -71,7 +76,7 @@
             error:
               result.status === 413
                 ? "The upload was larger than the server accepted. Try fewer or smaller images."
-                : "Failed to send message. Please try again."
+                : result.error?.message || "Failed to send message. Please try again."
           };
           return;
         }
@@ -84,10 +89,49 @@
       }
     };
   };
+
+  onMount(() => {
+    if (!turnstileSiteKey) return;
+
+    let cancelled = false;
+
+    const renderTurnstile = () => {
+      if (cancelled || !turnstileContainer || turnstileWidgetId) return;
+
+      const turnstile = window.turnstile;
+      if (!turnstile?.render) {
+        window.setTimeout(renderTurnstile, 120);
+        return;
+      }
+
+      turnstileWidgetId = turnstile.render(turnstileContainer, {
+        sitekey: turnstileSiteKey,
+        theme: "dark",
+        size: "flexible",
+        action: "contact"
+      });
+    };
+
+    renderTurnstile();
+
+    return () => {
+      cancelled = true;
+      if (turnstileWidgetId && window.turnstile?.remove) {
+        window.turnstile.remove(turnstileWidgetId);
+      }
+    };
+  });
 </script>
 
 <svelte:head>
   <title>Contact Nick Esselman</title>
+  {#if turnstileSiteKey}
+    <script
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+      async
+      defer
+    ></script>
+  {/if}
 </svelte:head>
 
 <div class="shell">
@@ -219,41 +263,52 @@
               ></textarea>
             </div>
 
-            <div class="field">
+            <div class="field upload-section">
               <label for={"images-" + fileInputVersion}>Images</label>
-              {#key fileInputVersion}
-                <div class="upload-control">
-                  <input
-                    id={"images-" + fileInputVersion}
-                    class="file-input"
-                    name="images"
-                    type="file"
-                    accept={attachmentAccept}
-                    multiple
-                    bind:files={imageFiles}
-                  />
-                  <label class="upload-surface" for={"images-" + fileInputVersion}>
-                    <span class="upload-title">Choose images</span>
-                    <span class="upload-copy">
-                      Optional. Up to {IMAGE_LIMITS.maxFiles} files, {formatBytes(IMAGE_LIMITS.maxBytesPerFile)}
-                      each, {formatBytes(IMAGE_LIMITS.maxBytesTotal)} total.
-                    </span>
-                  </label>
-                </div>
-              {/key}
+              <p class="field-note">
+                Add screenshots or reference images if they help explain the request.
+              </p>
+              <div class="upload-stack">
+                {#key fileInputVersion}
+                  <div class="upload-control">
+                    <input
+                      id={"images-" + fileInputVersion}
+                      class="file-input"
+                      name="images"
+                      type="file"
+                      accept={attachmentAccept}
+                      multiple
+                      bind:files={imageFiles}
+                    />
+                    <label class="upload-surface" for={"images-" + fileInputVersion}>
+                      <span class="upload-title">Choose images</span>
+                      <span class="upload-copy">
+                        Optional. Up to {IMAGE_LIMITS.maxFiles} files, {formatBytes(IMAGE_LIMITS.maxBytesPerFile)}
+                        each, {formatBytes(IMAGE_LIMITS.maxBytesTotal)} total.
+                      </span>
+                    </label>
+                  </div>
+                {/key}
 
-              {#if selectedImages.length}
-                <div class="file-list" aria-live="polite">
-                  {#each selectedImages as file}
-                    <div class="file-pill">
-                      <span>{file.name}</span>
-                      <strong>{formatBytes(file.size)}</strong>
-                    </div>
-                  {/each}
-                  <p class="subtle">Total: {formatBytes(totalImageBytes)}.</p>
-                </div>
-              {/if}
+                {#if selectedImages.length}
+                  <div class="file-list" aria-live="polite">
+                    {#each selectedImages as file}
+                      <div class="file-pill">
+                        <span>{file.name}</span>
+                        <strong>{formatBytes(file.size)}</strong>
+                      </div>
+                    {/each}
+                    <p class="subtle">Total: {formatBytes(totalImageBytes)}.</p>
+                  </div>
+                {/if}
+              </div>
             </div>
+
+            {#if turnstileSiteKey}
+              <div class="turnstile-section">
+                <div class="cf-turnstile" bind:this={turnstileContainer}></div>
+              </div>
+            {/if}
           </div>
 
           <input type="hidden" name="source" value={source ?? ""} />

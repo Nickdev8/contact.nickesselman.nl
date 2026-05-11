@@ -1,10 +1,15 @@
+import { dev } from "$app/environment";
+import { env as privateEnv } from "$env/dynamic/private";
+import { env as publicEnv } from "$env/dynamic/public";
 import { fail } from "@sveltejs/kit";
-import type { Actions } from "./$types";
+import type { Actions, PageServerLoad } from "./$types";
 import nodemailer from "nodemailer";
-import { env } from "$env/dynamic/private";
 import { formatBytes, IMAGE_LIMITS, normalizeSource } from "$lib/contactContext";
 
 export const prerender = false;
+
+const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
+const TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
 
 const sanitizeAttachmentName = (name: string, index: number) => {
   const cleaned = name.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -14,31 +19,41 @@ const sanitizeAttachmentName = (name: string, index: number) => {
 const sanitizeHeaderText = (value: string) =>
   value.replace(/[\r\n"]/g, " ").replace(/\s+/g, " ").trim();
 
+const getTurnstileSiteKey = () =>
+  dev ? TURNSTILE_TEST_SITE_KEY : publicEnv.PUBLIC_TURNSTILE_SITE_KEY ?? "";
+
+const getTurnstileSecretKey = () =>
+  dev ? TURNSTILE_TEST_SECRET_KEY : privateEnv.TURNSTILE_SECRET_KEY ?? "";
+
 const createTransporter = () => {
   if (
-    !env.SMTP_HOST ||
-    !env.SMTP_PORT ||
-    !env.SMTP_USER ||
-    !env.SMTP_PASSWORD ||
-    !env.EMAIL_FROM ||
-    !env.EMAIL_TO
+    !privateEnv.SMTP_HOST ||
+    !privateEnv.SMTP_PORT ||
+    !privateEnv.SMTP_USER ||
+    !privateEnv.SMTP_PASSWORD ||
+    !privateEnv.EMAIL_FROM ||
+    !privateEnv.EMAIL_TO
   ) {
     return null;
   }
 
   return nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: Number(env.SMTP_PORT),
-    secure: env.SMTP_SECURE === "true",
+    host: privateEnv.SMTP_HOST,
+    port: Number(privateEnv.SMTP_PORT),
+    secure: privateEnv.SMTP_SECURE === "true",
     auth: {
-      user: env.SMTP_USER,
-      pass: env.SMTP_PASSWORD
+      user: privateEnv.SMTP_USER,
+      pass: privateEnv.SMTP_PASSWORD
     }
   });
 };
 
+export const load: PageServerLoad = async () => ({
+  turnstileSiteKey: getTurnstileSiteKey()
+});
+
 export const actions: Actions = {
-  default: async ({ request }) => {
+  default: async ({ request, fetch, getClientAddress }) => {
     const data = await request.formData();
 
     if ((data.get("subject")?.toString() ?? "").trim()) {
@@ -56,6 +71,7 @@ export const actions: Actions = {
     const method = data.get("contactMethod")?.toString().trim().toLowerCase();
     const detail = data.get("contactDetail")?.toString().trim() || "";
     const source = normalizeSource(data.get("source")?.toString());
+    const turnstileToken = data.get("cf-turnstile-response")?.toString();
     const imageFiles = data
       .getAll("images")
       .filter((entry): entry is File => entry instanceof File && entry.size > 0);
@@ -93,6 +109,53 @@ export const actions: Actions = {
 
     if (!method) {
       return fail(400, { error: "Please select a contact method." });
+    }
+
+    const turnstileSiteKey = getTurnstileSiteKey();
+    const turnstileSecretKey = getTurnstileSecretKey();
+    const shouldVerifyTurnstile = Boolean(turnstileSiteKey && turnstileSecretKey);
+
+    if (shouldVerifyTurnstile) {
+      if (!turnstileToken) {
+        return fail(400, { error: "Please confirm you are not a bot." });
+      }
+
+      const verificationBody = new URLSearchParams({
+        secret: turnstileSecretKey,
+        response: turnstileToken
+      });
+
+      try {
+        const remoteip = getClientAddress();
+        if (remoteip) verificationBody.set("remoteip", remoteip);
+      } catch {
+        // Some adapters may not expose a client IP.
+      }
+
+      try {
+        const verificationResponse = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            body: verificationBody
+          }
+        );
+
+        const verification = (await verificationResponse.json()) as {
+          success?: boolean;
+          "error-codes"?: string[];
+        };
+
+        if (!verificationResponse.ok || !verification.success) {
+          console.warn("Turnstile verification failed", verification["error-codes"] ?? []);
+          return fail(400, { error: "Captcha verification failed. Please try again." });
+        }
+      } catch (error) {
+        console.error("Turnstile verification request failed:", error);
+        return fail(502, {
+          error: "Spam check could not be completed right now. Please try again."
+        });
+      }
     }
 
     let replyTo: string | undefined;
@@ -165,8 +228,8 @@ export const actions: Actions = {
 
     try {
       await transporter.sendMail({
-        from: env.EMAIL_FROM,
-        to: env.EMAIL_TO,
+        from: privateEnv.EMAIL_FROM,
+        to: privateEnv.EMAIL_TO,
         ...(replyTo ? { replyTo } : {}),
         subject: `Contact form${source ? ` from ${source}` : ""} (${method}${imageFiles.length ? `, ${imageFiles.length} image${imageFiles.length === 1 ? "" : "s"}` : ""})`,
         text: fullText,

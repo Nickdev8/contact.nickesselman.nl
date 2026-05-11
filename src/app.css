@@ -22,12 +22,15 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  width: 100%;
+  overflow-x: clip;
 }
 
 body {
   font-family: "IBM Plex Sans", sans-serif;
   background: var(--bg);
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 a {
@@ -59,9 +62,11 @@ textarea {
 .shell {
   min-height: 100vh;
   padding: 28px 16px 48px;
+  overflow-x: clip;
 }
 
 .page {
+  width: 100%;
   max-width: 720px;
   margin: 0 auto;
 }
@@ -100,6 +105,7 @@ textarea {
 
 .source-note {
   display: inline-block;
+  max-width: 100%;
   margin: 14px 0 0;
   padding: 8px 10px;
   border: 1px solid var(--line-strong);
@@ -114,6 +120,7 @@ textarea {
   border-radius: 10px;
   background: var(--surface);
   padding: 20px;
+  overflow: hidden;
 }
 
 .form-header {
@@ -137,11 +144,13 @@ textarea {
 .grid {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .field {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .field label {
@@ -149,14 +158,22 @@ textarea {
   font-weight: 600;
 }
 
+.field-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
 .field input,
 .field select,
 .field textarea {
   width: 100%;
-  padding: 13px 14px;
+  max-width: 100%;
+  padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-muted);
+  border-radius: 14px;
+  background: rgba(14, 12, 17, 0.94);
   color: var(--text);
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
@@ -171,8 +188,8 @@ textarea {
 .field textarea:focus {
   outline: none;
   border-color: var(--accent);
-  background: #141013;
-  box-shadow: 0 0 0 3px rgba(214, 87, 104, 0.12);
+  background: #100d14;
+  box-shadow: 0 0 0 4px rgba(219, 98, 127, 0.11);
 }
 
 .field textarea {
@@ -182,6 +199,25 @@ textarea {
 
 .upload-control {
   display: grid;
+}
+
+.upload-section {
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.upload-stack,
+.turnstile-wrap {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.turnstile-section {
+  margin-top: 2px;
 }
 
 .file-input {
@@ -199,11 +235,16 @@ textarea {
 .upload-surface {
   display: grid;
   gap: 6px;
-  padding: 14px;
+  padding: 16px;
   border: 1px dashed var(--line-strong);
   border-radius: 8px;
   background: var(--surface-muted);
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.upload-surface:hover {
+  border-color: var(--accent-strong);
 }
 
 .upload-title {
@@ -218,7 +259,7 @@ textarea {
 .file-list {
   display: grid;
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .file-pill {
@@ -226,6 +267,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 11px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -251,6 +293,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   min-height: 44px;
   padding: 0 18px;
   border-radius: 8px;
@@ -328,6 +371,11 @@ textarea {
   opacity: 0;
 }
 
+.cf-turnstile {
+  max-width: 100%;
+  min-height: 66px;
+}
+
 @media (min-width: 760px) {
   .shell {
     padding-top: 40px;
@@ -344,5 +392,20 @@ textarea {
 
   .grid-two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .button,
+  .button-secondary {
+    width: auto;
+  }
+
+  .upload-section {
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 24px;
+  }
+
+  .file-pill {
+    flex-wrap: nowrap;
   }
 }
