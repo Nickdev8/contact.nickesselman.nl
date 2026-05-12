@@ -36,7 +36,7 @@ Notes:
 - If you want to send from `info@nickesselman.nl`, add that address as a verified Gmail alias first and then change `EMAIL_FROM`.
 - `BODY_SIZE_LIMIT` is required for image uploads in production because the SvelteKit Node server defaults to `512K`, which is lower than the form's 9.5 MB total attachment budget.
 - `PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` enable Cloudflare Turnstile on the contact form.
-- During `npm run dev`, the app always uses Cloudflare's official Turnstile test keys automatically, even if real keys exist in `.env`.
+- During `npm run dev`, the app always uses Cloudflare's official Turnstile test keys automatically, even if real keys exist in `.env`, and skips server-side Turnstile verification so local submissions work without depending on Cloudflare.
 - Outside local development, if Turnstile keys are missing the form falls back to the existing non-Turnstile flow.
 
 ## Start

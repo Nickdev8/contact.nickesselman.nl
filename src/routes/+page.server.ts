@@ -25,6 +25,131 @@ const getTurnstileSiteKey = () =>
 const getTurnstileSecretKey = () =>
   dev ? TURNSTILE_TEST_SECRET_KEY : privateEnv.TURNSTILE_SECRET_KEY ?? "";
 
+const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const TURNSTILE_VERIFY_TIMEOUT_MS = 8000;
+
+type TurnstileVerificationResponse = {
+  success?: boolean;
+  "error-codes"?: string[];
+};
+
+type TurnstileVerificationResult =
+  | { ok: true }
+  | { ok: false; status: number; error: string };
+
+const serializeError = (error: unknown) => {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    };
+  }
+
+  return { value: error };
+};
+
+const verifyTurnstileToken = async ({
+  fetch,
+  token,
+  secretKey,
+  siteKey,
+  remoteIp
+}: {
+  fetch: typeof globalThis.fetch;
+  token: string;
+  secretKey: string;
+  siteKey: string;
+  remoteIp?: string;
+}): Promise<TurnstileVerificationResult> => {
+  const verificationBody = new URLSearchParams({
+    secret: secretKey,
+    response: token
+  });
+
+  if (remoteIp) verificationBody.set("remoteip", remoteIp);
+
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort("timeout"), TURNSTILE_VERIFY_TIMEOUT_MS);
+
+  console.info("Turnstile verification started", {
+    url: TURNSTILE_VERIFY_URL,
+    hasTurnstileSiteKey: Boolean(siteKey),
+    hasTurnstileSecretKey: Boolean(secretKey),
+    includesRemoteIp: Boolean(remoteIp)
+  });
+
+  try {
+    const verificationResponse = await fetch(TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      body: verificationBody,
+      signal: abortController.signal
+    });
+
+    const rawBody = await verificationResponse.text();
+
+    let verification: TurnstileVerificationResponse = {};
+    if (rawBody) {
+      try {
+        verification = JSON.parse(rawBody) as TurnstileVerificationResponse;
+      } catch {
+        console.warn("Turnstile verification returned a non-JSON response", {
+          status: verificationResponse.status,
+          body: rawBody.slice(0, 500)
+        });
+      }
+    }
+
+    if (!verificationResponse.ok) {
+      console.warn("Turnstile verification returned a non-OK response", {
+        status: verificationResponse.status,
+        errorCodes: verification["error-codes"] ?? [],
+        body: rawBody.slice(0, 500)
+      });
+
+      return {
+        ok: false,
+        status: 400,
+        error: "Captcha verification failed. Please try again."
+      };
+    }
+
+    if (!verification.success) {
+      console.warn("Turnstile verification rejected the token", {
+        status: verificationResponse.status,
+        errorCodes: verification["error-codes"] ?? []
+      });
+
+      return {
+        ok: false,
+        status: 400,
+        error: "Captcha verification failed. Please try again."
+      };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    console.error("Turnstile verification request failed", {
+      ...serializeError(error),
+      url: TURNSTILE_VERIFY_URL,
+      hasTurnstileSiteKey: Boolean(siteKey),
+      hasTurnstileSecretKey: Boolean(secretKey),
+      includesRemoteIp: Boolean(remoteIp)
+    });
+
+    return {
+      ok: false,
+      status: 502,
+      error: "Spam check could not be completed right now. Please try again."
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const createTransporter = () => {
   if (
     !privateEnv.SMTP_HOST ||
@@ -113,48 +238,30 @@ export const actions: Actions = {
 
     const turnstileSiteKey = getTurnstileSiteKey();
     const turnstileSecretKey = getTurnstileSecretKey();
-    const shouldVerifyTurnstile = Boolean(turnstileSiteKey && turnstileSecretKey);
+    const shouldVerifyTurnstile = !dev && Boolean(turnstileSiteKey && turnstileSecretKey);
 
     if (shouldVerifyTurnstile) {
       if (!turnstileToken) {
         return fail(400, { error: "Please confirm you are not a bot." });
       }
 
-      const verificationBody = new URLSearchParams({
-        secret: turnstileSecretKey,
-        response: turnstileToken
-      });
-
+      let remoteIp: string | undefined;
       try {
-        const remoteip = getClientAddress();
-        if (remoteip) verificationBody.set("remoteip", remoteip);
+        remoteIp = getClientAddress() || undefined;
       } catch {
         // Some adapters may not expose a client IP.
       }
 
-      try {
-        const verificationResponse = await fetch(
-          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-          {
-            method: "POST",
-            body: verificationBody
-          }
-        );
+      const verification = await verifyTurnstileToken({
+        fetch,
+        token: turnstileToken,
+        secretKey: turnstileSecretKey,
+        siteKey: turnstileSiteKey,
+        remoteIp
+      });
 
-        const verification = (await verificationResponse.json()) as {
-          success?: boolean;
-          "error-codes"?: string[];
-        };
-
-        if (!verificationResponse.ok || !verification.success) {
-          console.warn("Turnstile verification failed", verification["error-codes"] ?? []);
-          return fail(400, { error: "Captcha verification failed. Please try again." });
-        }
-      } catch (error) {
-        console.error("Turnstile verification request failed:", error);
-        return fail(502, {
-          error: "Spam check could not be completed right now. Please try again."
-        });
+      if (!verification.ok) {
+        return fail(verification.status, { error: verification.error });
       }
     }
 
