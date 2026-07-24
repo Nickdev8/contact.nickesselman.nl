@@ -363,12 +363,26 @@ footer {
 }
 
 .turnstile-section {
+  display: grid;
+  gap: 6px;
   min-height: 66px;
 }
 
-.cf-turnstile {
+.turnstile-label {
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.turnstile-widget {
   max-width: 100%;
   min-height: 66px;
+}
+
+.turnstile-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .actions {
@@ -596,8 +610,12 @@ footer {
   }
 
   .turnstile-section,
-  .cf-turnstile {
+  .turnstile-widget {
     min-height: 62px;
+  }
+
+  .turnstile-label {
+    font-size: 0.78rem;
   }
 
   .actions,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
   import { goto } from "$app/navigation";
   import { enhance } from "$app/forms";
@@ -37,6 +37,11 @@
   let fileInputVersion = 0;
   let turnstileContainer: HTMLDivElement | null = null;
   let turnstileWidgetId: string | undefined;
+  let turnstileVerified = false;
+  let turnstileHasError = false;
+  let turnstileRenderTimer: number | undefined;
+  let turnstileResetTimer: number | undefined;
+  let componentMounted = false;
 
   const attachmentAccept = IMAGE_LIMITS.acceptedTypes.join(",");
   const turnstileSiteKey = data.turnstileSiteKey;
@@ -50,7 +55,74 @@
     message = presetMessage;
   }
 
-  const resetFormView = () => {
+  const removeTurnstile = () => {
+    if (turnstileRenderTimer) {
+      window.clearTimeout(turnstileRenderTimer);
+      turnstileRenderTimer = undefined;
+    }
+
+    if (turnstileResetTimer) {
+      window.clearTimeout(turnstileResetTimer);
+      turnstileResetTimer = undefined;
+    }
+
+    if (turnstileWidgetId && window.turnstile?.remove) {
+      window.turnstile.remove(turnstileWidgetId);
+    }
+
+    turnstileWidgetId = undefined;
+    turnstileVerified = false;
+    turnstileHasError = false;
+  };
+
+  const renderTurnstile = () => {
+    if (!componentMounted || !turnstileSiteKey || !turnstileContainer || turnstileWidgetId) {
+      return;
+    }
+
+    const turnstile = window.turnstile;
+    if (!turnstile?.render) {
+      turnstileRenderTimer = window.setTimeout(renderTurnstile, 120);
+      return;
+    }
+
+    turnstileWidgetId = turnstile.render(turnstileContainer, {
+      sitekey: turnstileSiteKey,
+      theme: "light",
+      size: "flexible",
+      appearance: "always",
+      action: "contact",
+      callback: () => {
+        turnstileVerified = true;
+        turnstileHasError = false;
+      },
+      "expired-callback": () => {
+        turnstileVerified = false;
+        turnstileResetTimer = window.setTimeout(resetTurnstile, 0);
+      },
+      "error-callback": () => {
+        turnstileVerified = false;
+        turnstileHasError = true;
+        turnstileResetTimer = window.setTimeout(resetTurnstile, 1200);
+        return true;
+      }
+    });
+  };
+
+  const resetTurnstile = () => {
+    turnstileVerified = false;
+    turnstileHasError = false;
+
+    if (turnstileWidgetId && window.turnstile?.reset) {
+      window.turnstile.reset(turnstileWidgetId);
+      return;
+    }
+
+    turnstileWidgetId = undefined;
+    renderTurnstile();
+  };
+
+  const resetFormView = async () => {
     clientResult = null;
     name = "";
     email = "";
@@ -59,6 +131,8 @@
     contactDetail = "";
     imageFiles = null;
     fileInputVersion += 1;
+    await tick();
+    renderTurnstile();
   };
 
   const handleEnhance: SubmitFunction = () => {
@@ -78,11 +152,24 @@
                 ? "The upload was larger than the server accepted. Try fewer or smaller images."
                 : result.error?.message || "Failed to send message. Please try again."
           };
+          await tick();
+          resetTurnstile();
           return;
         }
 
         if (result.type === "success" || result.type === "failure") {
-          clientResult = result.data as FormResult;
+          const nextResult = result.data as FormResult;
+
+          if (nextResult.success) {
+            removeTurnstile();
+          }
+
+          clientResult = nextResult;
+
+          if (!nextResult.success) {
+            await tick();
+            resetTurnstile();
+          }
         }
       } finally {
         isSubmitting = false;
@@ -93,32 +180,12 @@
   onMount(() => {
     if (!turnstileSiteKey) return;
 
-    let cancelled = false;
-
-    const renderTurnstile = () => {
-      if (cancelled || !turnstileContainer || turnstileWidgetId) return;
-
-      const turnstile = window.turnstile;
-      if (!turnstile?.render) {
-        window.setTimeout(renderTurnstile, 120);
-        return;
-      }
-
-      turnstileWidgetId = turnstile.render(turnstileContainer, {
-        sitekey: turnstileSiteKey,
-        theme: "light",
-        size: "flexible",
-        action: "contact"
-      });
-    };
-
+    componentMounted = true;
     renderTurnstile();
 
     return () => {
-      cancelled = true;
-      if (turnstileWidgetId && window.turnstile?.remove) {
-        window.turnstile.remove(turnstileWidgetId);
-      }
+      removeTurnstile();
+      componentMounted = false;
     };
   });
 </script>
@@ -310,7 +377,13 @@
 
             {#if turnstileSiteKey}
               <div class="turnstile-section">
-                <div class="cf-turnstile" bind:this={turnstileContainer}></div>
+                <span class="turnstile-label">Security check</span>
+                <div class="turnstile-widget" bind:this={turnstileContainer}></div>
+                {#if !turnstileVerified}
+                  <p class="turnstile-status" aria-live="polite">
+                    {turnstileHasError ? "Security check is retrying…" : "Complete the check to send your message."}
+                  </p>
+                {/if}
               </div>
             {/if}
           </div>
@@ -325,7 +398,11 @@
           />
 
           <div class="actions">
-            <button class="button" type="submit" disabled={isSubmitting}>
+            <button
+              class="button"
+              type="submit"
+              disabled={isSubmitting || (Boolean(turnstileSiteKey) && !turnstileVerified)}
+            >
               {isSubmitting ? "Sending…" : "Send message"}
             </button>
           </div>
