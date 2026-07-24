@@ -38,6 +38,19 @@ Notes:
 - `PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` enable Cloudflare Turnstile on the contact form.
 - During `npm run dev`, the app always uses Cloudflare's official Turnstile test keys automatically, even if real keys exist in `.env`, and skips server-side Turnstile verification so local submissions work without depending on Cloudflare.
 - Outside local development, if Turnstile keys are missing the form falls back to the existing non-Turnstile flow.
+- Spaces in a Google app password are accepted and removed automatically.
+
+Verify SMTP authentication without sending a message:
+
+```bash
+npm run test:mail
+```
+
+After verification succeeds, send a labeled delivery test:
+
+```bash
+npm run test:mail -- --send
+```
 
 ## Start
 

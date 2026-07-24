@@ -27,6 +27,10 @@ const getTurnstileSecretKey = () =>
 
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const TURNSTILE_VERIFY_TIMEOUT_MS = 8000;
+const SMTP_CONNECTION_TIMEOUT_MS = 10000;
+const SMTP_GREETING_TIMEOUT_MS = 10000;
+const SMTP_SOCKET_TIMEOUT_MS = 20000;
+const SMTP_MAX_ATTEMPTS = 2;
 
 type TurnstileVerificationResponse = {
   success?: boolean;
@@ -162,15 +166,83 @@ const createTransporter = () => {
     return null;
   }
 
+  const port = Number(privateEnv.SMTP_PORT);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    console.error("Contact form has an invalid SMTP port.");
+    return null;
+  }
+
   return nodemailer.createTransport({
     host: privateEnv.SMTP_HOST,
-    port: Number(privateEnv.SMTP_PORT),
+    port,
     secure: privateEnv.SMTP_SECURE === "true",
     auth: {
       user: privateEnv.SMTP_USER,
-      pass: privateEnv.SMTP_PASSWORD
-    }
+      // Google displays app passwords in groups of four. Accept either format.
+      pass: privateEnv.SMTP_PASSWORD.replace(/\s+/g, "")
+    },
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS
   });
+};
+
+const getMailErrorDetails = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return { value: String(error) };
+  }
+
+  const mailError = error as Error & {
+    code?: string;
+    command?: string;
+    responseCode?: number;
+  };
+
+  return {
+    name: mailError.name,
+    message: mailError.message,
+    code: mailError.code,
+    command: mailError.command,
+    responseCode: mailError.responseCode
+  };
+};
+
+const isTransientMailError = (error: unknown) => {
+  const mailError = error as {
+    code?: string;
+    responseCode?: number;
+  };
+
+  return (
+    ["ECONNECTION", "ECONNRESET", "ESOCKET", "ETIMEDOUT"].includes(mailError?.code ?? "") ||
+    [421, 450, 451, 452].includes(mailError?.responseCode ?? 0)
+  );
+};
+
+const sendMailWithRetry = async (
+  transporter: ReturnType<typeof nodemailer.createTransport>,
+  mail: Parameters<typeof transporter.sendMail>[0],
+  requestId: string
+) => {
+  for (let attempt = 1; attempt <= SMTP_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await transporter.sendMail(mail);
+    } catch (error) {
+      const shouldRetry = attempt < SMTP_MAX_ATTEMPTS && isTransientMailError(error);
+
+      console.error("Email delivery attempt failed", {
+        requestId,
+        attempt,
+        willRetry: shouldRetry,
+        ...getMailErrorDetails(error)
+      });
+
+      if (!shouldRetry) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  }
+
+  throw new Error("Email delivery exhausted all attempts.");
 };
 
 export const load: PageServerLoad = async () => ({
@@ -179,6 +251,7 @@ export const load: PageServerLoad = async () => ({
 
 export const actions: Actions = {
   default: async ({ request, fetch, getClientAddress }) => {
+    const requestId = crypto.randomUUID();
     const data = await request.formData();
 
     if ((data.get("subject")?.toString() ?? "").trim()) {
@@ -334,13 +407,21 @@ export const actions: Actions = {
     ].join("\n");
 
     try {
-      await transporter.sendMail({
+      const delivery = await sendMailWithRetry(transporter, {
         from: privateEnv.EMAIL_FROM,
         to: privateEnv.EMAIL_TO,
         ...(replyTo ? { replyTo } : {}),
         subject: `Contact form${source ? ` from ${source}` : ""} (${method}${imageFiles.length ? `, ${imageFiles.length} image${imageFiles.length === 1 ? "" : "s"}` : ""})`,
         text: fullText,
         attachments
+      }, requestId);
+
+      console.info("Contact email delivered", {
+        requestId,
+        messageId: delivery.messageId,
+        accepted: delivery.accepted.length,
+        rejected: delivery.rejected.length,
+        attachmentCount: imageFiles.length
       });
 
       return {
@@ -350,7 +431,10 @@ export const actions: Actions = {
           : "Message sent. I will read it soon."
       };
     } catch (error) {
-      console.error("Email send failed:", error);
+      console.error("Contact email delivery failed", {
+        requestId,
+        ...getMailErrorDetails(error)
+      });
       return fail(500, { error: "Failed to send message. Please try again later." });
     }
   }
