@@ -9,7 +9,8 @@
     "start": "node build",
     "preview": "vite preview",
     "sync": "svelte-kit sync",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test:mail": "node --env-file=.env scripts/test-mail.mjs"
   },
   "dependencies": {
     "nodemailer": "7.0.5"

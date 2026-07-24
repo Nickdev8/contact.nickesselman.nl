@@ -106,7 +106,7 @@
 
       turnstileWidgetId = turnstile.render(turnstileContainer, {
         sitekey: turnstileSiteKey,
-        theme: "dark",
+        theme: "light",
         size: "flexible",
         action: "contact"
       });
@@ -134,25 +134,32 @@
   {/if}
 </svelte:head>
 
-<div class="shell">
+<div class="site">
+  <header class="site-header">
+    <a class="wordmark" href="/" aria-label="Nick Esselman contact">Nick Esselman</a>
+    <a class="header-email" href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
+  </header>
+
   <main class="page">
-    <section class="intro">
-      <p class="eyebrow">Contact</p>
-      <h1>Contact Nick Esselman</h1>
-      <p class="intro-copy">
-        Use this form for project questions, bug reports, or general contact. If email is
-        easier, send a message to <a href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>.
+    <aside class="intro">
+      <h1>Get in touch.</h1>
+      <p>
+        Questions, project ideas, bug reports—send whatever you have in mind.
+      </p>
+      <p class="direct-contact">
+        Prefer email?<br />
+        <a href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
       </p>
 
       {#if source}
-        <p class="source-note" aria-live="polite">Source: {source}</p>
+        <p class="source-note" aria-live="polite">Referred from {source}</p>
       {/if}
-    </section>
+    </aside>
 
-    <section class="panel">
+    <section class="form-section" aria-labelledby="form-title">
       {#if formResult.success}
         <div class="success">
-          <h2>Message sent</h2>
+          <h2 id="form-title">Message sent.</h2>
           <p>{formResult.message ?? "Your message was sent successfully."}</p>
         </div>
 
@@ -162,18 +169,15 @@
         </div>
       {:else}
         <div class="form-header">
-          <div>
-            <p class="section-kicker">Form</p>
-            <h2 class="form-heading">Send a message</h2>
-          </div>
+          <h2 id="form-title">Send a message</h2>
           <p class="form-copy">
-            Replies use the contact method you choose. Images are sent as email attachments.
+            I’ll reply using the contact method you choose.
           </p>
         </div>
 
         {#if formResult.error}
           <div class="status" role="alert">
-            <h2>Message not sent</h2>
+            <h3>Message not sent</h3>
             <p>{formResult.error}</p>
           </div>
         {/if}
@@ -184,7 +188,7 @@
           use:enhance={handleEnhance}
           aria-busy={isSubmitting}
         >
-          <div class="grid grid-two">
+          <div class="grid grid-two first-row">
             <div class="field">
               <label for="name">Name</label>
               <input
@@ -264,10 +268,10 @@
             </div>
 
             <div class="field upload-section">
-              <label for={"images-" + fileInputVersion}>Images</label>
-              <p class="field-note">
-                Add screenshots or reference images if they help explain the request.
-              </p>
+              <div class="upload-heading">
+                <label for={"images-" + fileInputVersion}>Images</label>
+                <span>Optional</span>
+              </div>
               <div class="upload-stack">
                 {#key fileInputVersion}
                   <div class="upload-control">
@@ -281,10 +285,10 @@
                       bind:files={imageFiles}
                     />
                     <label class="upload-surface" for={"images-" + fileInputVersion}>
-                      <span class="upload-title">Choose images</span>
+                      <span class="upload-title">Choose files</span>
                       <span class="upload-copy">
-                        Optional. Up to {IMAGE_LIMITS.maxFiles} files, {formatBytes(IMAGE_LIMITS.maxBytesPerFile)}
-                        each, {formatBytes(IMAGE_LIMITS.maxBytesTotal)} total.
+                        Up to {IMAGE_LIMITS.maxFiles} images · {formatBytes(IMAGE_LIMITS.maxBytesPerFile)}
+                        each · {formatBytes(IMAGE_LIMITS.maxBytesTotal)} total
                       </span>
                     </label>
                   </div>
@@ -293,7 +297,7 @@
                 {#if selectedImages.length}
                   <div class="file-list" aria-live="polite">
                     {#each selectedImages as file}
-                      <div class="file-pill">
+                      <div class="file-row">
                         <span>{file.name}</span>
                         <strong>{formatBytes(file.size)}</strong>
                       </div>
@@ -322,12 +326,16 @@
 
           <div class="actions">
             <button class="button" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Sending..." : "Send message"}
+              {isSubmitting ? "Sending…" : "Send message"}
             </button>
-            <a class="button-secondary" href="mailto:info@nickesselman.nl">Email directly</a>
           </div>
         </form>
       {/if}
     </section>
   </main>
+
+  <footer>
+    <span>Nick Esselman</span>
+    <span>{new Date().getFullYear()}</span>
+  </footer>
 </div>
