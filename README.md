@@ -1,71 +1,102 @@
 # contact.nickesselman.nl
 
-Standalone contact form for `contact.nickesselman.nl`.
+Small SvelteKit contact form for Nick Esselman. Submissions are validated, checked by Cloudflare
+Turnstile, and delivered directly to one configured mailbox. The application does not keep a
+database, upload files, or queue messages.
 
 ## Local development
 
 ```bash
 npm install
+cp .env.example .env
 npm run dev
 ```
 
-## Mail setup
+Development uses Cloudflare's official test widget keys. SMTP settings are still required to test
+successful delivery.
 
-This app already reads its mail configuration from a local `.env` file through SvelteKit.
+## Configuration
 
-Use this:
+Non-secret settings live in `.env`:
 
 ```dotenv
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=nick.esselman@gmail.com
-SMTP_PASSWORD=your-gmail-app-password
-
 EMAIL_FROM=Nick Contact <nick.esselman@gmail.com>
 EMAIL_TO=info@nickesselman.nl
-BODY_SIZE_LIMIT=12M
-PUBLIC_TURNSTILE_SITE_KEY=your-cloudflare-turnstile-site-key
-TURNSTILE_SECRET_KEY=your-cloudflare-turnstile-secret-key
+PUBLIC_TURNSTILE_SITE_KEY=your-site-key
 ```
 
-Notes:
+Production secrets live in extensionless files:
 
-- `SMTP_PASSWORD` should be a Gmail App Password, not the normal Gmail login password.
-- `EMAIL_FROM` should usually match the Gmail account you authenticate with, unless that Gmail account is configured to send as another verified address.
-- If you want to send from `info@nickesselman.nl`, add that address as a verified Gmail alias first and then change `EMAIL_FROM`.
-- `BODY_SIZE_LIMIT` is required for image uploads in production because the SvelteKit Node server defaults to `512K`, which is lower than the form's 9.5 MB total attachment budget.
-- `PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` enable Cloudflare Turnstile on the contact form.
-- During `npm run dev`, the app always uses Cloudflare's official Turnstile test keys automatically, even if real keys exist in `.env`, and skips server-side Turnstile verification so local submissions work without depending on Cloudflare.
-- Outside local development, if Turnstile keys are missing the form falls back to the existing non-Turnstile flow.
-- Spaces in a Google app password are accepted and removed automatically.
+```text
+secrets/smtp_password
+secrets/turnstile_secret
+```
 
-Verify SMTP authentication without sending a message:
+The SMTP password must be a Gmail App Password rather than the Gmail account password. Never commit
+either secret file. Production refuses to start when mail, Turnstile, the canonical origin, or the
+trusted Cloudflare address header is missing.
+
+## Verification
+
+```bash
+npm run check
+npm test
+npm run build
+npm audit --omit=dev
+docker compose config
+docker compose build
+```
+
+Test SMTP authentication without sending:
 
 ```bash
 npm run test:mail
 ```
 
-After verification succeeds, send a labeled delivery test:
+Send one clearly labelled smoke-test email:
 
 ```bash
 npm run test:mail -- --send
 ```
 
-## Start
+## Production
+
+The container:
+
+- Runs as an unprivileged Node 24 user.
+- Binds only to host loopback on port `3021`.
+- Uses a read-only filesystem, dropped capabilities, resource limits, and a health check.
+- Accepts at most `32K` request bodies.
+- Receives the visitor address only from `CF-Connecting-IP`.
+
+Start it with:
 
 ```bash
-npm run dev
+docker compose up --build -d
+docker compose ps
 ```
 
-Then submit the form once to confirm delivery.
+Create a named Cloudflare Tunnel and copy
+[`deploy/cloudflared-config.yml.example`](deploy/cloudflared-config.yml.example) to
+`/etc/cloudflared/config.yml`, replacing the tunnel ID. Route `contact.nickesselman.nl` to the
+tunnel, enable the Cloudflare edge HTTPS redirect, and set an edge rate limit of five `POST /`
+requests per IP per ten minutes.
 
-## Docker
+Only remove the old Caddy `contact.nickesselman.nl` route after the tunnel responds successfully.
+The tunnel ingress has a mandatory catch-all `404`, so no other local service is exposed.
 
-The Docker setup now runs this app on port `3021`.
+## Search contract
 
-```bash
-docker compose up --build
-```
+- Canonical URL: `https://contact.nickesselman.nl/`
+- Portfolio referral: `https://contact.nickesselman.nl/?from=portfolio`
+- Blog referral: `https://contact.nickesselman.nl/?from=blog`
+- Sitemap: `https://contact.nickesselman.nl/sitemap.xml`
+- Shared Person ID: `https://nickesselman.nl/#person`
 
-Then open `http://localhost:3021`.
+Submit the sitemap through the `nickesselman.nl` Google Search Console domain property and Bing
+Webmaster Tools. Cloudflare's robots controls should permit search and AI-search crawlers while
+keeping AI-training opt-out enabled.

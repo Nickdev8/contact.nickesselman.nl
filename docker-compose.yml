@@ -1,11 +1,53 @@
 services:
   contact-site:
     build: .
-    network_mode: host
-    env_file:
-      - .env
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3021:3021"
     environment:
+      NODE_ENV: production
       PORT: "3021"
       HOST: "0.0.0.0"
-      BODY_SIZE_LIMIT: "12M"
-    restart: unless-stopped
+      ORIGIN: "https://contact.nickesselman.nl"
+      ADDRESS_HEADER: "CF-Connecting-IP"
+      BODY_SIZE_LIMIT: "32K"
+      SMTP_HOST: "${SMTP_HOST}"
+      SMTP_PORT: "${SMTP_PORT}"
+      SMTP_SECURE: "${SMTP_SECURE:-false}"
+      SMTP_USER: "${SMTP_USER}"
+      SMTP_PASSWORD_FILE: "/run/secrets/smtp_password"
+      EMAIL_FROM: "${EMAIL_FROM}"
+      EMAIL_TO: "${EMAIL_TO}"
+      PUBLIC_TURNSTILE_SITE_KEY: "${PUBLIC_TURNSTILE_SITE_KEY}"
+      TURNSTILE_SECRET_KEY_FILE: "/run/secrets/turnstile_secret"
+      TURNSTILE_EXPECTED_HOSTNAME: "contact.nickesselman.nl"
+      TURNSTILE_EXPECTED_ACTION: "contact"
+    secrets:
+      - smtp_password
+      - turnstile_secret
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    mem_limit: 256m
+    cpus: 0.75
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3021/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+secrets:
+  smtp_password:
+    file: ./secrets/smtp_password
+  turnstile_secret:
+    file: ./secrets/turnstile_secret

@@ -1,196 +1,21 @@
-import { dev } from "$app/environment";
-import { env as privateEnv } from "$env/dynamic/private";
-import { env as publicEnv } from "$env/dynamic/public";
 import { fail } from "@sveltejs/kit";
-import type { Actions, PageServerLoad } from "./$types";
 import nodemailer from "nodemailer";
-import { formatBytes, IMAGE_LIMITS, normalizeSource } from "$lib/contactContext";
+import type { Actions, PageServerLoad } from "./$types";
+import { sourceLabel } from "$lib/contactContext";
+import { validateContactForm } from "$lib/contactValidation";
+import { getContactConfig, getTurnstileSiteKey } from "$lib/server/contactConfig";
+import { contactRateLimiter } from "$lib/server/contactRateLimit";
+import { verifyTurnstile } from "$lib/server/turnstile";
 
 export const prerender = false;
 
-const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
-const TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
-
-const sanitizeAttachmentName = (name: string, index: number) => {
-  const cleaned = name.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
-  return cleaned || `image-${index + 1}`;
-};
-
-const sanitizeHeaderText = (value: string) =>
-  value.replace(/[\r\n"]/g, " ").replace(/\s+/g, " ").trim();
-
-const getTurnstileSiteKey = () =>
-  dev ? TURNSTILE_TEST_SITE_KEY : publicEnv.PUBLIC_TURNSTILE_SITE_KEY ?? "";
-
-const getTurnstileSecretKey = () =>
-  dev ? TURNSTILE_TEST_SECRET_KEY : privateEnv.TURNSTILE_SECRET_KEY ?? "";
-
-const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const TURNSTILE_VERIFY_TIMEOUT_MS = 8000;
-const SMTP_CONNECTION_TIMEOUT_MS = 10000;
-const SMTP_GREETING_TIMEOUT_MS = 10000;
-const SMTP_SOCKET_TIMEOUT_MS = 20000;
+const SMTP_CONNECTION_TIMEOUT_MS = 10_000;
+const SMTP_GREETING_TIMEOUT_MS = 10_000;
+const SMTP_SOCKET_TIMEOUT_MS = 20_000;
 const SMTP_MAX_ATTEMPTS = 2;
 
-type TurnstileVerificationResponse = {
-  success?: boolean;
-  "error-codes"?: string[];
-};
-
-type TurnstileVerificationResult =
-  | { ok: true }
-  | { ok: false; status: number; error: string };
-
-const serializeError = (error: unknown) => {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    };
-  }
-
-  return { value: error };
-};
-
-const verifyTurnstileToken = async ({
-  fetch,
-  token,
-  secretKey,
-  siteKey,
-  remoteIp
-}: {
-  fetch: typeof globalThis.fetch;
-  token: string;
-  secretKey: string;
-  siteKey: string;
-  remoteIp?: string;
-}): Promise<TurnstileVerificationResult> => {
-  const verificationBody = new URLSearchParams({
-    secret: secretKey,
-    response: token
-  });
-
-  if (remoteIp) verificationBody.set("remoteip", remoteIp);
-
-  const abortController = new AbortController();
-  const timeout = setTimeout(() => abortController.abort("timeout"), TURNSTILE_VERIFY_TIMEOUT_MS);
-
-  console.info("Turnstile verification started", {
-    url: TURNSTILE_VERIFY_URL,
-    hasTurnstileSiteKey: Boolean(siteKey),
-    hasTurnstileSecretKey: Boolean(secretKey),
-    includesRemoteIp: Boolean(remoteIp)
-  });
-
-  try {
-    const verificationResponse = await fetch(TURNSTILE_VERIFY_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded"
-      },
-      body: verificationBody,
-      signal: abortController.signal
-    });
-
-    const rawBody = await verificationResponse.text();
-
-    let verification: TurnstileVerificationResponse = {};
-    if (rawBody) {
-      try {
-        verification = JSON.parse(rawBody) as TurnstileVerificationResponse;
-      } catch {
-        console.warn("Turnstile verification returned a non-JSON response", {
-          status: verificationResponse.status,
-          body: rawBody.slice(0, 500)
-        });
-      }
-    }
-
-    if (!verificationResponse.ok) {
-      console.warn("Turnstile verification returned a non-OK response", {
-        status: verificationResponse.status,
-        errorCodes: verification["error-codes"] ?? [],
-        body: rawBody.slice(0, 500)
-      });
-
-      return {
-        ok: false,
-        status: 400,
-        error: "Captcha verification failed. Please try again."
-      };
-    }
-
-    if (!verification.success) {
-      console.warn("Turnstile verification rejected the token", {
-        status: verificationResponse.status,
-        errorCodes: verification["error-codes"] ?? []
-      });
-
-      return {
-        ok: false,
-        status: 400,
-        error: "Captcha verification failed. Please try again."
-      };
-    }
-
-    return { ok: true };
-  } catch (error) {
-    console.error("Turnstile verification request failed", {
-      ...serializeError(error),
-      url: TURNSTILE_VERIFY_URL,
-      hasTurnstileSiteKey: Boolean(siteKey),
-      hasTurnstileSecretKey: Boolean(secretKey),
-      includesRemoteIp: Boolean(remoteIp)
-    });
-
-    return {
-      ok: false,
-      status: 502,
-      error: "Spam check could not be completed right now. Please try again."
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-};
-
-const createTransporter = () => {
-  if (
-    !privateEnv.SMTP_HOST ||
-    !privateEnv.SMTP_PORT ||
-    !privateEnv.SMTP_USER ||
-    !privateEnv.SMTP_PASSWORD ||
-    !privateEnv.EMAIL_FROM ||
-    !privateEnv.EMAIL_TO
-  ) {
-    return null;
-  }
-
-  const port = Number(privateEnv.SMTP_PORT);
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    console.error("Contact form has an invalid SMTP port.");
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host: privateEnv.SMTP_HOST,
-    port,
-    secure: privateEnv.SMTP_SECURE === "true",
-    auth: {
-      user: privateEnv.SMTP_USER,
-      // Google displays app passwords in groups of four. Accept either format.
-      pass: privateEnv.SMTP_PASSWORD.replace(/\s+/g, "")
-    },
-    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
-    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
-    socketTimeout: SMTP_SOCKET_TIMEOUT_MS
-  });
-};
-
 const getMailErrorDetails = (error: unknown) => {
-  if (!(error instanceof Error)) {
-    return { value: String(error) };
-  }
+  if (!(error instanceof Error)) return { type: "unknown" };
 
   const mailError = error as Error & {
     code?: string;
@@ -200,22 +25,17 @@ const getMailErrorDetails = (error: unknown) => {
 
   return {
     name: mailError.name,
-    message: mailError.message,
     code: mailError.code,
     command: mailError.command,
     responseCode: mailError.responseCode
   };
 };
 
-const isTransientMailError = (error: unknown) => {
-  const mailError = error as {
-    code?: string;
-    responseCode?: number;
-  };
-
+const isSafeToRetry = (error: unknown) => {
+  const mailError = error as { code?: string; command?: string };
   return (
-    ["ECONNECTION", "ECONNRESET", "ESOCKET", "ETIMEDOUT"].includes(mailError?.code ?? "") ||
-    [421, 450, 451, 452].includes(mailError?.responseCode ?? 0)
+    ["ECONNECTION", "ECONNREFUSED", "EDNS"].includes(mailError?.code ?? "") ||
+    (mailError?.code === "ETIMEDOUT" && (!mailError.command || mailError.command === "CONN"))
   );
 };
 
@@ -228,214 +48,169 @@ const sendMailWithRetry = async (
     try {
       return await transporter.sendMail(mail);
     } catch (error) {
-      const shouldRetry = attempt < SMTP_MAX_ATTEMPTS && isTransientMailError(error);
-
-      console.error("Email delivery attempt failed", {
+      const willRetry = attempt < SMTP_MAX_ATTEMPTS && isSafeToRetry(error);
+      console.error("Contact delivery attempt failed", {
         requestId,
         attempt,
-        willRetry: shouldRetry,
+        willRetry,
         ...getMailErrorDetails(error)
       });
 
-      if (!shouldRetry) throw error;
+      if (!willRetry) throw error;
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
   }
 
-  throw new Error("Email delivery exhausted all attempts.");
+  throw new Error("Contact delivery exhausted all attempts.");
 };
 
-export const load: PageServerLoad = async () => ({
-  turnstileSiteKey: getTurnstileSiteKey()
+export const load: PageServerLoad = async ({ locals }) => ({
+  turnstileSiteKey: getTurnstileSiteKey(),
+  cspNonce: locals.cspNonce
 });
 
 export const actions: Actions = {
-  default: async ({ request, fetch, getClientAddress }) => {
+  default: async ({ request, fetch, getClientAddress, setHeaders }) => {
     const requestId = crypto.randomUUID();
+    const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+
+    if (!contentType.startsWith("application/x-www-form-urlencoded")) {
+      return fail(415, { error: "This form only accepts text submissions." });
+    }
+
     const data = await request.formData();
 
     if ((data.get("subject")?.toString() ?? "").trim()) {
       return { success: true, message: "Your message was sent successfully." };
     }
 
-    const transporter = createTransporter();
-    if (!transporter) {
-      console.error("Contact form is missing SMTP configuration.");
-      return fail(500, { error: "Mail delivery is not configured right now." });
+    const validation = validateContactForm(data);
+    if (!validation.ok) {
+      return fail(400, { error: validation.error });
     }
 
-    const name = data.get("name")?.toString().trim() || "Anonymous";
-    const message = data.get("message")?.toString().trim() || "";
-    const method = data.get("contactMethod")?.toString().trim().toLowerCase();
-    const detail = data.get("contactDetail")?.toString().trim() || "";
-    const source = normalizeSource(data.get("source")?.toString());
-    const turnstileToken = data.get("cf-turnstile-response")?.toString();
-    const imageFiles = data
-      .getAll("images")
-      .filter((entry): entry is File => entry instanceof File && entry.size > 0);
-
-    if (imageFiles.length > IMAGE_LIMITS.maxFiles) {
-      return fail(400, {
-        error: `Attach up to ${IMAGE_LIMITS.maxFiles} images per message.`
+    const config = getContactConfig();
+    if (!config.ok) {
+      console.error("Contact service configuration is incomplete", {
+        requestId,
+        missing: config.missing
       });
+      return fail(503, { error: "The contact form is unavailable. Please use email instead." });
     }
 
-    const invalidImage = imageFiles.find((file) => !IMAGE_LIMITS.acceptedTypes.includes(file.type as (typeof IMAGE_LIMITS.acceptedTypes)[number]));
-    if (invalidImage) {
-      return fail(400, {
-        error: "Only PNG, JPG, WEBP, and GIF images are supported."
+    let remoteIp: string;
+    try {
+      remoteIp = getClientAddress();
+    } catch {
+      console.error("Trusted client address is unavailable", { requestId });
+      return fail(503, { error: "The contact form is unavailable. Please use email instead." });
+    }
+
+    const turnstileToken = data.get("cf-turnstile-response")?.toString() ?? "";
+    const verification = await verifyTurnstile({
+      fetch,
+      token: turnstileToken,
+      secret: config.turnstile.secret,
+      remoteIp,
+      requestId,
+      expectedHostname: config.turnstile.hostname,
+      expectedAction: config.turnstile.action
+    });
+
+    if (!verification.ok) {
+      console.warn("Turnstile rejected a contact submission", {
+        requestId,
+        codes: verification.codes
       });
+      return fail(verification.status, { error: verification.error });
     }
 
-    const oversizedImage = imageFiles.find((file) => file.size > IMAGE_LIMITS.maxBytesPerFile);
-    if (oversizedImage) {
-      return fail(400, {
-        error: `Each image must stay under ${formatBytes(IMAGE_LIMITS.maxBytesPerFile)}.`
-      });
+    const rateLimit = contactRateLimiter.consume(remoteIp);
+    if (!rateLimit.allowed) {
+      setHeaders({ "retry-after": String(rateLimit.retryAfterSeconds) });
+      return fail(429, { error: "Too many messages were sent. Please wait before trying again." });
     }
 
-    const totalImageBytes = imageFiles.reduce((sum, file) => sum + file.size, 0);
-    if (totalImageBytes > IMAGE_LIMITS.maxBytesTotal) {
-      return fail(400, {
-        error: `Images must stay under ${formatBytes(IMAGE_LIMITS.maxBytesTotal)} total.`
-      });
+    if (!contactRateLimiter.acquireDeliverySlot()) {
+      setHeaders({ "retry-after": "30" });
+      return fail(503, { error: "The contact form is busy. Please try again shortly." });
     }
 
-    if (!message) {
-      return fail(400, { error: "Please include a message." });
-    }
+    const submission = validation.submission;
+    const transporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: config.smtp.port,
+      secure: config.smtp.secure,
+      requireTLS: !config.smtp.secure,
+      auth: {
+        user: config.smtp.user,
+        pass: config.smtp.password
+      },
+      tls: {
+        minVersion: "TLSv1.2",
+        rejectUnauthorized: true
+      },
+      connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+      greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+      socketTimeout: SMTP_SOCKET_TIMEOUT_MS
+    });
 
-    if (!method) {
-      return fail(400, { error: "Please select a contact method." });
-    }
-
-    const turnstileSiteKey = getTurnstileSiteKey();
-    const turnstileSecretKey = getTurnstileSecretKey();
-    const shouldVerifyTurnstile = !dev && Boolean(turnstileSiteKey && turnstileSecretKey);
-
-    if (shouldVerifyTurnstile) {
-      if (!turnstileToken) {
-        return fail(400, { error: "Please confirm you are not a bot." });
-      }
-
-      let remoteIp: string | undefined;
-      try {
-        remoteIp = getClientAddress() || undefined;
-      } catch {
-        // Some adapters may not expose a client IP.
-      }
-
-      const verification = await verifyTurnstileToken({
-        fetch,
-        token: turnstileToken,
-        secretKey: turnstileSecretKey,
-        siteKey: turnstileSiteKey,
-        remoteIp
-      });
-
-      if (!verification.ok) {
-        return fail(verification.status, { error: verification.error });
-      }
-    }
-
-    let replyTo: string | undefined;
-    let contactSummary = "";
-    const safeName = sanitizeHeaderText(name) || "Anonymous";
-
-    switch (method) {
-      case "email": {
-        const email = data.get("email")?.toString().trim();
-        if (!email) {
-          return fail(400, { error: "Please provide your email address." });
-        }
-
-        replyTo = `"${safeName}" <${email}>`;
-        contactSummary = `Contact via email: ${email}`;
-        break;
-      }
-
-      case "sms":
-      case "whatsapp":
-      case "phone":
-      case "instagram":
-        if (!detail) {
-          return fail(400, { error: "Please provide your contact details." });
-        }
-
-        contactSummary = `Contact via ${method}: ${detail}`;
-        break;
-
-      case "none":
-        contactSummary = "User requested: do not contact them back.";
-        break;
-
-      default:
-        return fail(400, { error: "Unknown contact method." });
-    }
-
-    const attachments = await Promise.all(
-      imageFiles.map(async (file, index) => ({
-        filename: sanitizeAttachmentName(file.name, index),
-        content: Buffer.from(await file.arrayBuffer()),
-        contentType: file.type
-      }))
-    );
-
+    const contactSummary =
+      submission.method === "none"
+        ? "No reply requested"
+        : `${submission.method}: ${submission.detail}`;
     const timestamp = new Intl.DateTimeFormat("en-GB", {
       dateStyle: "medium",
       timeStyle: "medium",
       timeZone: "Europe/Amsterdam"
     }).format(new Date());
-
     const fullText = [
-      source ? `Source: ${source}` : "Source: direct visit",
+      submission.source ? `Source: ${sourceLabel(submission.source)}` : "Source: direct visit",
       "",
-      "Preferred contact method:",
-      contactSummary,
+      `Preferred reply: ${contactSummary}`,
       "",
       "Message:",
-      message,
-      "",
-      "Image attachments:",
-      imageFiles.length
-        ? imageFiles.map((file) => `${file.name} (${formatBytes(file.size)})`).join(", ")
-        : "None",
+      submission.message,
       "",
       "---",
       `Sent on: ${timestamp}`,
-      `Sender name: ${safeName}`
+      `Sender name: ${submission.name}`
     ].join("\n");
 
     try {
-      const delivery = await sendMailWithRetry(transporter, {
-        from: privateEnv.EMAIL_FROM,
-        to: privateEnv.EMAIL_TO,
-        ...(replyTo ? { replyTo } : {}),
-        subject: `Contact form${source ? ` from ${source}` : ""} (${method}${imageFiles.length ? `, ${imageFiles.length} image${imageFiles.length === 1 ? "" : "s"}` : ""})`,
-        text: fullText,
-        attachments
-      }, requestId);
+      const delivery = await sendMailWithRetry(
+        transporter,
+        {
+          from: config.smtp.from,
+          to: config.smtp.to,
+          ...(submission.method === "email" && submission.detail
+            ? { replyTo: { name: submission.name, address: submission.detail } }
+            : {}),
+          subject: `Contact form${submission.source ? ` from ${submission.source}` : ""} (${submission.method})`,
+          text: fullText,
+          disableFileAccess: true,
+          disableUrlAccess: true
+        },
+        requestId
+      );
 
-      console.info("Contact email delivered", {
-        requestId,
-        messageId: delivery.messageId,
-        accepted: delivery.accepted.length,
-        rejected: delivery.rejected.length,
-        attachmentCount: imageFiles.length
-      });
+      if (!delivery.accepted.length || delivery.rejected.length) {
+        throw Object.assign(new Error("Configured recipient was not accepted."), {
+          code: "ERECIPIENT"
+        });
+      }
 
-      return {
-        success: true,
-        message: imageFiles.length
-          ? `Message sent with ${imageFiles.length} image attachment${imageFiles.length === 1 ? "" : "s"}.`
-          : "Message sent. I will read it soon."
-      };
+      console.info("Contact email accepted", { requestId });
+      return { success: true, message: "Message sent. I will read it soon." };
     } catch (error) {
-      console.error("Contact email delivery failed", {
+      console.error("Contact delivery failed", {
         requestId,
         ...getMailErrorDetails(error)
       });
-      return fail(500, { error: "Failed to send message. Please try again later." });
+      return fail(502, { error: "The message could not be delivered. Please use email instead." });
+    } finally {
+      transporter.close();
+      contactRateLimiter.releaseDeliverySlot();
     }
   }
 };

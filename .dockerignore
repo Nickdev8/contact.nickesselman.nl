@@ -1,5 +1,11 @@
-node_modules
+.git
+.agents
+.codex
+.env
+.seo-cache
 .svelte-kit
 build
-.env
-npm-debug.log*
+node_modules
+screenshots
+secrets
+*.md

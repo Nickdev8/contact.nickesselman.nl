@@ -1,4 +1,14 @@
 import nodemailer from "nodemailer";
+import { readFileSync } from "node:fs";
+
+const readSetting = (name) => {
+  const direct = process.env[name]?.trim();
+  if (direct) return direct;
+
+  const path = process.env[`${name}_FILE`]?.trim();
+  if (!path) return "";
+  return readFileSync(path, "utf8").trim();
+};
 
 const requiredVariables = [
   "SMTP_HOST",
@@ -9,25 +19,30 @@ const requiredVariables = [
   "EMAIL_TO"
 ];
 
-const missingVariables = requiredVariables.filter((name) => !process.env[name]?.trim());
+const missingVariables = requiredVariables.filter((name) => !readSetting(name));
 if (missingVariables.length) {
   console.error(`Missing mail settings: ${missingVariables.join(", ")}`);
   process.exit(1);
 }
 
-const port = Number(process.env.SMTP_PORT);
+const port = Number(readSetting("SMTP_PORT"));
 if (!Number.isInteger(port) || port <= 0 || port > 65535) {
   console.error("SMTP_PORT must be a valid port number.");
   process.exit(1);
 }
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
+  host: readSetting("SMTP_HOST"),
   port,
-  secure: process.env.SMTP_SECURE === "true",
+  secure: readSetting("SMTP_SECURE") === "true",
+  requireTLS: readSetting("SMTP_SECURE") !== "true",
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD.replace(/\s+/g, "")
+    user: readSetting("SMTP_USER"),
+    pass: readSetting("SMTP_PASSWORD").replace(/\s+/g, "")
+  },
+  tls: {
+    minVersion: "TLSv1.2",
+    rejectUnauthorized: true
   },
   connectionTimeout: 10000,
   greetingTimeout: 10000,
@@ -41,9 +56,9 @@ try {
   if (process.argv.includes("--send")) {
     const timestamp = new Date().toISOString();
     const result = await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: process.env.EMAIL_TO,
-      subject: "Contact form delivery test",
+      from: readSetting("EMAIL_FROM"),
+      to: readSetting("EMAIL_TO"),
+      subject: "[contact smoke test] Delivery verification",
       text: [
         "This is a delivery test from contact.nickesselman.nl.",
         "",

@@ -1,4 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap");
+@font-face {
+  font-family: "DM Sans";
+  src: url("/fonts/dm-sans-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
 
 :root {
   color-scheme: light;
@@ -7,7 +13,7 @@
   --surface: #fffdf8;
   --ink: #24231f;
   --muted: #6d6a61;
-  --faint: #aaa59a;
+  --faint: #777268;
   --line: #d8d2c6;
   --line-strong: #9c9588;
   --accent: #9b3f2c;
@@ -40,6 +46,10 @@ body {
   line-height: 1.5;
   overflow-wrap: anywhere;
   overflow-x: hidden;
+}
+
+.app-root {
+  display: contents;
 }
 
 button,
@@ -124,6 +134,16 @@ footer {
   font-size: 1rem;
 }
 
+.intro .identity {
+  max-width: 36ch;
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.identity a {
+  font-weight: 600;
+}
+
 .intro .direct-contact {
   margin-top: 48px;
   font-size: 0.9rem;
@@ -195,8 +215,7 @@ footer {
   gap: 8px;
 }
 
-.field label,
-.upload-heading label {
+.field label {
   color: var(--ink);
   font-size: 0.85rem;
   font-weight: 600;
@@ -246,122 +265,6 @@ footer {
   box-shadow: 0 0 0 3px var(--focus);
 }
 
-.upload-section {
-  gap: 10px;
-  padding-top: 4px;
-}
-
-.upload-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.upload-heading span {
-  color: var(--faint);
-  font-size: 0.78rem;
-}
-
-.upload-stack {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.upload-control {
-  position: relative;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.file-input {
-  position: absolute;
-  inset: 0 auto auto 0;
-  width: 1px !important;
-  height: 1px !important;
-  min-width: 0 !important;
-  max-width: 1px !important;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-  opacity: 0;
-}
-
-.upload-surface {
-  display: grid;
-  width: 100%;
-  max-width: 100%;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 18px;
-  min-height: 62px;
-  padding: 10px 13px;
-  border: 1px dashed var(--line-strong);
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease;
-}
-
-.upload-surface:hover {
-  border-color: var(--accent);
-  background: rgba(255, 253, 248, 0.6);
-}
-
-.file-input:focus-visible + .upload-surface {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--focus);
-}
-
-.upload-title {
-  color: var(--accent-dark);
-  font-size: 0.86rem;
-  font-weight: 600;
-}
-
-.upload-copy {
-  color: var(--muted);
-  font-size: 0.78rem;
-  text-align: right;
-}
-
-.file-list {
-  margin-top: 8px;
-  border-top: 1px solid var(--line);
-}
-
-.file-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 0.82rem;
-}
-
-.file-row span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-row strong {
-  color: var(--muted);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.subtle {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
 .turnstile-section {
   display: grid;
   gap: 6px;
@@ -383,6 +286,14 @@ footer {
   margin: 0;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.privacy-note {
+  max-width: 66ch;
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 
 .actions {
@@ -475,6 +386,39 @@ footer {
   font-size: 0.78rem;
 }
 
+footer nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.error-page {
+  width: min(100% - 40px, 720px);
+  min-height: 100svh;
+  margin-inline: auto;
+  padding-block: clamp(72px, 14vh, 160px);
+}
+
+.error-page .error-code {
+  margin: 0 0 12px;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.error-page h1 {
+  margin: 0;
+  font-size: clamp(2.8rem, 8vw, 5.6rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.95;
+}
+
+.error-page > p:not(.error-code) {
+  max-width: 36ch;
+  margin: 24px 0 30px;
+  color: var(--muted);
+}
+
 @media (max-width: 780px) {
   .site-header,
   .page,
@@ -507,6 +451,10 @@ footer {
 
   .intro .direct-contact {
     margin-top: 20px;
+  }
+
+  .intro .identity {
+    margin-top: 18px;
   }
 
   .form-header {
@@ -544,6 +492,10 @@ footer {
     display: none;
   }
 
+  .intro .identity {
+    display: none;
+  }
+
   .grid-two {
     grid-template-columns: 1fr;
     gap: 14px;
@@ -577,36 +529,19 @@ footer {
     gap: 5px;
   }
 
-  .field label,
-  .upload-heading label {
+  .field label {
     font-size: 0.78rem;
   }
 
   .field input,
   .field select {
-    height: 42px;
+    height: 48px;
     padding-inline: 11px;
   }
 
   .field textarea {
     min-height: 96px;
     padding: 10px 11px;
-  }
-
-  .upload-section {
-    gap: 6px;
-  }
-
-  .upload-surface {
-    grid-template-columns: 1fr;
-    min-height: 50px;
-    gap: 1px;
-    padding: 7px 11px;
-  }
-
-  .upload-copy {
-    font-size: 0.72rem;
-    text-align: left;
   }
 
   .turnstile-section,
@@ -631,7 +566,7 @@ footer {
 
   .button,
   .button-secondary {
-    min-height: 42px;
+    min-height: 48px;
   }
 
   footer {
@@ -685,10 +620,6 @@ footer {
 
   .field textarea {
     min-height: 120px;
-  }
-
-  .upload-surface {
-    min-height: 54px;
   }
 
   .actions {

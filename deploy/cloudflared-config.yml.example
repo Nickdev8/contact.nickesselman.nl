@@ -1,0 +1,7 @@
+tunnel: CONTACT_TUNNEL_ID
+credentials-file: /etc/cloudflared/CONTACT_TUNNEL_ID.json
+
+ingress:
+  - hostname: contact.nickesselman.nl
+    service: http://127.0.0.1:3021
+  - service: http_status:404

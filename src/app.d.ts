@@ -1,5 +1,9 @@
 declare global {
-  namespace App {}
+  namespace App {
+    interface Locals {
+      cspNonce: string;
+    }
+  }
 
   interface Window {
     turnstile?: {

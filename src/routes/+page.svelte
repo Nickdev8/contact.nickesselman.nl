@@ -6,9 +6,9 @@
   import { page } from "$app/stores";
   import {
     buildPresetMessage,
-    formatBytes,
-    IMAGE_LIMITS,
-    normalizeSource
+    FIELD_LIMITS,
+    normalizeSource,
+    sourceLabel
   } from "$lib/contactContext";
 
   type FormResult = {
@@ -17,24 +17,50 @@
     error?: string;
   };
 
-  export let data: { turnstileSiteKey: string };
+  export let data: { turnstileSiteKey: string; cspNonce: string };
   export let form: FormResult | null | undefined;
+
+  const title = "Contact Nick Esselman | Projects, Questions & Support";
+  const description =
+    "Contact Nick Esselman about a website project, technical question, or bug report. Choose how you want a reply or email Nick directly.";
+  const structuredData = JSON.stringify({
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "ContactPage",
+        "@id": "https://contact.nickesselman.nl/#contact-page",
+        url: "https://contact.nickesselman.nl/",
+        name: title,
+        description,
+        inLanguage: "en",
+        mainEntity: { "@id": "https://nickesselman.nl/#person" },
+        isPartOf: { "@id": "https://nickesselman.nl/#website" }
+      },
+      {
+        "@type": "Person",
+        "@id": "https://nickesselman.nl/#person",
+        name: "Nick Esselman",
+        url: "https://nickesselman.nl/"
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://nickesselman.nl/#website",
+        url: "https://nickesselman.nl/",
+        name: "Nick Esselman"
+      }
+    ]
+  }).replace(/</g, "\\u003c");
 
   let clientResult: FormResult | null = null;
   let formResult: FormResult = {};
   let isSubmitting = false;
-
   let name = "";
   let email = "";
   let message = "";
   let contactMethod = "";
   let contactDetail = "";
-  let imageFiles: FileList | null = null;
-  let selectedImages: File[] = [];
-  let totalImageBytes = 0;
-  let source: string | null = null;
+  let source: "portfolio" | "blog" | null = null;
   let presetMessage = "";
-  let fileInputVersion = 0;
   let turnstileContainer: HTMLDivElement | null = null;
   let turnstileWidgetId: string | undefined;
   let turnstileVerified = false;
@@ -43,28 +69,18 @@
   let turnstileResetTimer: number | undefined;
   let componentMounted = false;
 
-  const attachmentAccept = IMAGE_LIMITS.acceptedTypes.join(",");
   const turnstileSiteKey = data.turnstileSiteKey;
 
   $: formResult = clientResult ?? form ?? {};
   $: source = normalizeSource($page.url.searchParams.get("from"));
   $: presetMessage = buildPresetMessage($page.url.searchParams);
-  $: selectedImages = imageFiles ? Array.from(imageFiles) : [];
-  $: totalImageBytes = selectedImages.reduce((sum, file) => sum + file.size, 0);
-  $: if (presetMessage) {
-    message = presetMessage;
-  }
+  $: if (presetMessage) message = presetMessage;
 
   const removeTurnstile = () => {
-    if (turnstileRenderTimer) {
-      window.clearTimeout(turnstileRenderTimer);
-      turnstileRenderTimer = undefined;
-    }
-
-    if (turnstileResetTimer) {
-      window.clearTimeout(turnstileResetTimer);
-      turnstileResetTimer = undefined;
-    }
+    if (turnstileRenderTimer) window.clearTimeout(turnstileRenderTimer);
+    if (turnstileResetTimer) window.clearTimeout(turnstileResetTimer);
+    turnstileRenderTimer = undefined;
+    turnstileResetTimer = undefined;
 
     if (turnstileWidgetId && window.turnstile?.remove) {
       window.turnstile.remove(turnstileWidgetId);
@@ -76,9 +92,7 @@
   };
 
   const renderTurnstile = () => {
-    if (!componentMounted || !turnstileSiteKey || !turnstileContainer || turnstileWidgetId) {
-      return;
-    }
+    if (!componentMounted || !turnstileSiteKey || !turnstileContainer || turnstileWidgetId) return;
 
     const turnstile = window.turnstile;
     if (!turnstile?.render) {
@@ -115,11 +129,10 @@
 
     if (turnstileWidgetId && window.turnstile?.reset) {
       window.turnstile.reset(turnstileWidgetId);
-      return;
+    } else {
+      turnstileWidgetId = undefined;
+      renderTurnstile();
     }
-
-    turnstileWidgetId = undefined;
-    renderTurnstile();
   };
 
   const resetFormView = async () => {
@@ -129,8 +142,6 @@
     message = presetMessage;
     contactMethod = "";
     contactDetail = "";
-    imageFiles = null;
-    fileInputVersion += 1;
     await tick();
     renderTurnstile();
   };
@@ -149,7 +160,7 @@
           clientResult = {
             error:
               result.status === 413
-                ? "The upload was larger than the server accepted. Try fewer or smaller images."
+                ? "The message was larger than the server accepts."
                 : result.error?.message || "Failed to send message. Please try again."
           };
           await tick();
@@ -159,11 +170,7 @@
 
         if (result.type === "success" || result.type === "failure") {
           const nextResult = result.data as FormResult;
-
-          if (nextResult.success) {
-            removeTurnstile();
-          }
-
+          if (nextResult.success) removeTurnstile();
           clientResult = nextResult;
 
           if (!nextResult.success) {
@@ -179,7 +186,6 @@
 
   onMount(() => {
     if (!turnstileSiteKey) return;
-
     componentMounted = true;
     renderTurnstile();
 
@@ -191,7 +197,21 @@
 </script>
 
 <svelte:head>
-  <title>Contact Nick Esselman</title>
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large" />
+  <link rel="canonical" href="https://contact.nickesselman.nl/" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <meta property="og:site_name" content="Nick Esselman" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://contact.nickesselman.nl/" />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
+  {@html `<script nonce="${data.cspNonce}" type="application/ld+json">${structuredData}</script>`}
   {#if turnstileSiteKey}
     <script
       src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
@@ -203,33 +223,34 @@
 
 <div class="site">
   <header class="site-header">
-    <a class="wordmark" href="/" aria-label="Nick Esselman contact">Nick Esselman</a>
+    <a class="wordmark" href="https://nickesselman.nl/">Nick Esselman</a>
     <a class="header-email" href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
   </header>
 
   <main class="page">
     <aside class="intro">
       <h1>Get in touch.</h1>
-      <p>
-        Questions, project ideas, bug reports—send whatever you have in mind.
+      <p>Questions, project ideas, bug reports—send whatever you have in mind.</p>
+      <p class="identity">
+        Official contact page for
+        <a href="https://nickesselman.nl/">Nick Esselman</a>, a Netherlands-based full-stack
+        developer and maker.
       </p>
       <p class="direct-contact">
         Prefer email?<br />
         <a href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
       </p>
-
       {#if source}
-        <p class="source-note" aria-live="polite">Referred from {source}</p>
+        <p class="source-note" aria-live="polite">Referred from {sourceLabel(source)}</p>
       {/if}
     </aside>
 
     <section class="form-section" aria-labelledby="form-title">
       {#if formResult.success}
-        <div class="success">
+        <div class="success" role="status">
           <h2 id="form-title">Message sent.</h2>
           <p>{formResult.message ?? "Your message was sent successfully."}</p>
         </div>
-
         <div class="actions">
           <button type="button" class="button" on:click={resetFormView}>Send another</button>
           <a class="button-secondary" href="mailto:info@nickesselman.nl">Use email instead</a>
@@ -237,9 +258,7 @@
       {:else}
         <div class="form-header">
           <h2 id="form-title">Send a message</h2>
-          <p class="form-copy">
-            I’ll reply using the contact method you choose.
-          </p>
+          <p class="form-copy">I’ll reply using the contact method you choose.</p>
         </div>
 
         {#if formResult.error}
@@ -249,12 +268,7 @@
           </div>
         {/if}
 
-        <form
-          method="POST"
-          enctype="multipart/form-data"
-          use:enhance={handleEnhance}
-          aria-busy={isSubmitting}
-        >
+        <form method="POST" use:enhance={handleEnhance} aria-busy={isSubmitting}>
           <div class="grid grid-two first-row">
             <div class="field">
               <label for="name">Name</label>
@@ -263,6 +277,8 @@
                 name="name"
                 type="text"
                 bind:value={name}
+                maxlength={FIELD_LIMITS.name}
+                autocomplete="name"
                 placeholder="Your name"
                 required
               />
@@ -291,6 +307,7 @@
                   name="email"
                   type="email"
                   bind:value={email}
+                  maxlength={FIELD_LIMITS.email}
                   autocomplete="email"
                   required
                 />
@@ -305,6 +322,9 @@
                   name="contactDetail"
                   type="tel"
                   bind:value={contactDetail}
+                  maxlength={FIELD_LIMITS.contactDetail}
+                  autocomplete="tel"
+                  inputmode="tel"
                   placeholder="+31 6 12 34 56 78"
                   required
                 />
@@ -317,6 +337,9 @@
                   name="contactDetail"
                   type="text"
                   bind:value={contactDetail}
+                  maxlength={FIELD_LIMITS.instagram + 1}
+                  autocomplete="off"
+                  pattern={"@?[A-Za-z0-9._]{1,30}"}
                   placeholder="@username"
                   required
                 />
@@ -329,50 +352,10 @@
                 id="message"
                 name="message"
                 bind:value={message}
+                maxlength={FIELD_LIMITS.message}
                 placeholder="What do you need?"
                 required
               ></textarea>
-            </div>
-
-            <div class="field upload-section">
-              <div class="upload-heading">
-                <label for={"images-" + fileInputVersion}>Images</label>
-                <span>Optional</span>
-              </div>
-              <div class="upload-stack">
-                {#key fileInputVersion}
-                  <div class="upload-control">
-                    <input
-                      id={"images-" + fileInputVersion}
-                      class="file-input"
-                      name="images"
-                      type="file"
-                      accept={attachmentAccept}
-                      multiple
-                      bind:files={imageFiles}
-                    />
-                    <label class="upload-surface" for={"images-" + fileInputVersion}>
-                      <span class="upload-title">Choose files</span>
-                      <span class="upload-copy">
-                        Up to {IMAGE_LIMITS.maxFiles} images · {formatBytes(IMAGE_LIMITS.maxBytesPerFile)}
-                        each · {formatBytes(IMAGE_LIMITS.maxBytesTotal)} total
-                      </span>
-                    </label>
-                  </div>
-                {/key}
-
-                {#if selectedImages.length}
-                  <div class="file-list" aria-live="polite">
-                    {#each selectedImages as file}
-                      <div class="file-row">
-                        <span>{file.name}</span>
-                        <strong>{formatBytes(file.size)}</strong>
-                      </div>
-                    {/each}
-                    <p class="subtle">Total: {formatBytes(totalImageBytes)}.</p>
-                  </div>
-                {/if}
-              </div>
             </div>
 
             {#if turnstileSiteKey}
@@ -381,13 +364,18 @@
                 <div class="turnstile-widget" bind:this={turnstileContainer}></div>
                 {#if !turnstileVerified}
                   <p class="turnstile-status" aria-live="polite">
-                    {turnstileHasError ? "Security check is retrying…" : "Complete the check to send your message."}
+                    {turnstileHasError ? "Security check is retrying." : "Complete the check to send."}
+                    <a href="mailto:info@nickesselman.nl">Use email instead.</a>
                   </p>
                 {/if}
               </div>
             {/if}
           </div>
 
+          <p class="privacy-note">
+            Used only to answer your message. Don’t send passwords, API keys, identity documents,
+            or other secrets.
+          </p>
           <input type="hidden" name="source" value={source ?? ""} />
           <input
             class="honeypot"
@@ -395,6 +383,7 @@
             name="subject"
             tabindex="-1"
             autocomplete="off"
+            aria-hidden="true"
           />
 
           <div class="actions">
@@ -413,6 +402,10 @@
 
   <footer>
     <span>Nick Esselman</span>
-    <span>{new Date().getFullYear()}</span>
+    <nav aria-label="Related sites">
+      <a href="https://nickesselman.nl/">Portfolio</a>
+      <a href="https://blog.nickesselman.nl/">Blog</a>
+      <span>{new Date().getFullYear()}</span>
+    </nav>
   </footer>
 </div>
