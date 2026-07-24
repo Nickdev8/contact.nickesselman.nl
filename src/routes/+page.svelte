@@ -34,19 +34,26 @@
         description,
         inLanguage: "en",
         mainEntity: { "@id": "https://nickesselman.nl/#person" },
-        isPartOf: { "@id": "https://nickesselman.nl/#website" }
+        isPartOf: { "@id": "https://contact.nickesselman.nl/#website" }
       },
       {
         "@type": "Person",
         "@id": "https://nickesselman.nl/#person",
         name: "Nick Esselman",
-        url: "https://nickesselman.nl/"
+        url: "https://nickesselman.nl/",
+        sameAs: [
+          "https://github.com/nickdev8/",
+          "https://www.linkedin.com/in/nick-esselman/",
+          "https://www.instagram.com/nick.esselman/"
+        ]
       },
       {
         "@type": "WebSite",
-        "@id": "https://nickesselman.nl/#website",
-        url: "https://nickesselman.nl/",
-        name: "Nick Esselman"
+        "@id": "https://contact.nickesselman.nl/#website",
+        url: "https://contact.nickesselman.nl/",
+        name: "Contact Nick Esselman",
+        alternateName: "contact.nickesselman.nl",
+        publisher: { "@id": "https://nickesselman.nl/#person" }
       }
     ]
   }).replace(/</g, "\\u003c");
@@ -202,8 +209,10 @@
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large" />
   <link rel="canonical" href="https://contact.nickesselman.nl/" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/favicon-96.png" type="image/png" sizes="96x96" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
-  <meta property="og:site_name" content="Nick Esselman" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+  <meta property="og:site_name" content="Contact Nick Esselman" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://contact.nickesselman.nl/" />
   <meta property="og:title" content={title} />
@@ -241,11 +250,11 @@
         <a href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
       </p>
       {#if source}
-        <p class="source-note" aria-live="polite">Referred from {sourceLabel(source)}</p>
+        <p class="source-note" aria-live="polite" data-nosnippet>Referred from {sourceLabel(source)}</p>
       {/if}
     </aside>
 
-    <section class="form-section" aria-labelledby="form-title">
+    <section class="form-section" aria-labelledby="form-title" data-nosnippet>
       {#if formResult.success}
         <div class="success" role="status">
           <h2 id="form-title">Message sent.</h2>
@@ -404,7 +413,7 @@
     <span>Nick Esselman</span>
     <nav aria-label="Related sites">
       <a href="https://nickesselman.nl/">Portfolio</a>
-      <a href="https://blog.nickesselman.nl/">Blog</a>
+      <a href="https://blog.nickesselman.nl/">Nick Esselman’s Blog</a>
       <span>{new Date().getFullYear()}</span>
     </nav>
   </footer>
