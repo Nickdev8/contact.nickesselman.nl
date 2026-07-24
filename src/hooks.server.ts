@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 import type { Handle } from "@sveltejs/kit";
-import { dev } from "$app/environment";
 
 const appendNonce = (policy: string, nonce: string) => {
   const source = `'nonce-${nonce}'`;
@@ -10,14 +9,6 @@ const appendNonce = (policy: string, nonce: string) => {
 };
 
 export const handle: Handle = async ({ event, resolve }) => {
-  if (!dev && event.request.headers.get("x-forwarded-proto") === "http") {
-    const location = new URL(event.url.pathname + event.url.search, "https://contact.nickesselman.nl");
-    return new Response(null, {
-      status: 308,
-      headers: { location: location.toString() }
-    });
-  }
-
   event.locals.cspNonce = randomBytes(16).toString("base64");
   const original = await resolve(event);
   const response = new Response(original.body, original);
