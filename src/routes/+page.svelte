@@ -75,6 +75,10 @@
   let turnstileRenderTimer: number | undefined;
   let turnstileResetTimer: number | undefined;
   let componentMounted = false;
+  $: isDutch = $page.url.pathname === "/nl" || $page.url.pathname.startsWith("/nl/");
+  $: englishPath = isDutch ? $page.url.pathname.replace(/^\/nl(?=\/|$)/, "") || "/" : $page.url.pathname;
+  $: dutchPath = isDutch ? $page.url.pathname : `/nl${$page.url.pathname === "/" ? "/" : $page.url.pathname}`;
+  $: canonicalPath = isDutch ? "https://contact.nickesselman.nl/nl/" : "https://contact.nickesselman.nl/";
 
   const turnstileSiteKey = data.turnstileSiteKey;
 
@@ -207,7 +211,10 @@
   <title>{title}</title>
   <meta name="description" content={description} />
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large" />
-  <link rel="canonical" href="https://contact.nickesselman.nl/" />
+  <link rel="canonical" href={canonicalPath} />
+  <link rel="alternate" hreflang="en" href="https://contact.nickesselman.nl/" />
+  <link rel="alternate" hreflang="nl" href="https://contact.nickesselman.nl/nl/" />
+  <link rel="alternate" hreflang="x-default" href="https://contact.nickesselman.nl/" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="icon" href="/favicon-96.png" type="image/png" sizes="96x96" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -233,20 +240,26 @@
 <div class="site">
   <header class="site-header">
     <a class="wordmark" href="https://nickesselman.nl/">Nick Esselman</a>
-    <a class="header-email" href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
+    <div class="header-actions">
+      <a class="header-email" href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
+      <nav class="language-switch" aria-label="Language">
+        <a href={englishPath} lang="en" hreflang="en" class:active={!isDutch}>EN</a>
+        <span aria-hidden="true">/</span>
+        <a href={dutchPath} lang="nl" hreflang="nl" class:active={isDutch}>NL</a>
+      </nav>
+    </div>
   </header>
 
   <main class="page">
     <aside class="intro">
-      <h1>Get in touch.</h1>
-      <p>Questions, project ideas, bug reports—send whatever you have in mind.</p>
+      <h1>{isDutch ? "Neem contact op." : "Get in touch."}</h1>
       <p class="identity">
-        Official contact page for
+        {isDutch ? "Officiële contactpagina van" : "Official contact page for"}
         <a href="https://nickesselman.nl/">Nick Esselman</a>, a Netherlands-based full-stack
         developer and maker.
       </p>
       <p class="direct-contact">
-        Prefer email?<br />
+        {isDutch ? "Liever e-mail?" : "Prefer email?"}<br />
         <a href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
       </p>
       {#if source}
@@ -266,8 +279,7 @@
         </div>
       {:else}
         <div class="form-header">
-          <h2 id="form-title">Send a message</h2>
-          <p class="form-copy">I’ll reply using the contact method you choose.</p>
+          <h2 id="form-title">{isDutch ? "Stuur een bericht" : "Send a message"}</h2>
         </div>
 
         {#if formResult.error}
