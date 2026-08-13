@@ -75,6 +75,13 @@
   let turnstileRenderTimer: number | undefined;
   let turnstileResetTimer: number | undefined;
   let componentMounted = false;
+  let phoneVisible = false;
+
+  // Deliberately assembled after a visitor asks to see it. Keep this out of the rendered HTML.
+  const getPhoneNumber = () =>
+    `+${[0, 8, 3, 0, 5, 3, 9, 8, 4, 1, 1].map((digit) => (digit + 3) % 10).join("")}`;
+  const formatPhoneNumber = (number: string) =>
+    `${number.slice(0, 3)} ${number.slice(3, 4)} ${number.slice(4, 7)} ${number.slice(7, 10)} ${number.slice(10)}`;
   $: isDutch = $page.url.pathname === "/nl" || $page.url.pathname.startsWith("/nl/");
   $: englishPath = isDutch ? $page.url.pathname.replace(/^\/nl(?=\/|$)/, "") || "/" : $page.url.pathname;
   $: dutchPath = isDutch ? $page.url.pathname : `/nl${$page.url.pathname === "/" ? "/" : $page.url.pathname}`;
@@ -261,6 +268,16 @@
       <p class="direct-contact">
         {isDutch ? "Liever e-mail?" : "Prefer email?"}<br />
         <a href="mailto:info@nickesselman.nl">info@nickesselman.nl</a>
+      </p>
+      <p class="direct-contact phone-contact">
+        {#if phoneVisible}
+          {isDutch ? "Liever bellen?" : "Prefer to call?"}<br />
+          <a href={`tel:${getPhoneNumber()}`}>{formatPhoneNumber(getPhoneNumber())}</a>
+        {:else}
+          <button type="button" class="phone-reveal" on:click={() => (phoneVisible = true)}>
+            {isDutch ? "Telefoonnummer tonen" : "Show phone number"}
+          </button>
+        {/if}
       </p>
       {#if source}
         <p class="source-note" aria-live="polite" data-nosnippet>Referred from {sourceLabel(source)}</p>

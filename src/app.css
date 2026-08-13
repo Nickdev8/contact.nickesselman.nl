@@ -159,6 +159,33 @@ footer {
   font-weight: 500;
 }
 
+.intro .phone-contact {
+  margin-top: 16px;
+}
+
+.phone-reveal {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.phone-reveal:hover {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.phone-reveal:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
 .intro .source-note {
   width: fit-content;
   margin-top: 24px;
@@ -490,10 +517,6 @@ footer nav {
     margin-top: 10px;
     font-size: 0.9rem;
     line-height: 1.4;
-  }
-
-  .intro .direct-contact {
-    display: none;
   }
 
   .intro .identity {
