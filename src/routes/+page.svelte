@@ -419,6 +419,7 @@
             class="honeypot"
             type="text"
             name="contact_website"
+            hidden
             tabindex="-1"
             autocomplete="off"
             aria-hidden="true"
