@@ -44,7 +44,7 @@ const normalizePhone = (value: string) => {
 };
 
 export const validateContactForm = (data: FormData): ContactValidationResult => {
-  const honeypot = getText(data, "subject");
+  const honeypot = getText(data, "contact_website");
   const name = getText(data, "name");
   const message = getText(data, "message");
   const rawMethod = getText(data, "contactMethod").toLowerCase();

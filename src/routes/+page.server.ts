@@ -80,8 +80,9 @@ export const actions: Actions = {
 
     const data = await request.formData();
 
-    if ((data.get("subject")?.toString() ?? "").trim()) {
-      return { success: true, message: "Your message was sent successfully." };
+    if ((data.get("contact_website")?.toString() ?? "").trim()) {
+      console.info("Contact submission rejected by honeypot", { requestId });
+      return fail(400, { error: "Your message was not sent. Please reload the page and try again." });
     }
 
     const validation = validateContactForm(data);
